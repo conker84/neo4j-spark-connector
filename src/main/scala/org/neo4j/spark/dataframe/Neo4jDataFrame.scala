@@ -5,9 +5,9 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.{DataType, DataTypes, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.neo4j.driver.internal.types.InternalTypeSystem
-import org.neo4j.driver.v1._
-import org.neo4j.driver.v1.summary.ResultSummary
-import org.neo4j.driver.v1.types.{Type, TypeSystem}
+import org.neo4j.driver._
+import org.neo4j.driver.summary.ResultSummary
+import org.neo4j.driver.types.{Type, TypeSystem}
 import org.neo4j.spark.Neo4jConfig
 import org.neo4j.spark.rdd.{Neo4jPartition, Neo4jRowRDD}
 
@@ -68,7 +68,7 @@ object Neo4jDataFrame {
 
   def execute(config: Neo4jConfig, query: String, parameters: java.util.Map[String, AnyRef], write: Boolean = false): ResultSummary = {
     val driver: Driver = config.driver()
-    val session = driver.session()
+    val session = driver.session(config.sessionConfig())
     try {
       val runner = new TransactionWork[ResultSummary]() {
         override def execute(tx: Transaction): ResultSummary =
@@ -115,7 +115,7 @@ object Neo4jDataFrame {
 //    val limitedQuery = s"$query"
 //    val config = Neo4jConfig(sqlContext.sparkContext.getConf)
 //    val driver = config.driver()
-//    val session = driver.session()
+//    val session = driver.session(config.sessionConfig())
 //    try {
 //      val runTransaction = new TransactionWork[DataFrame]() {
 //        override def execute(tx: Transaction): DataFrame = {
@@ -176,7 +176,7 @@ object Neo4jDataFrame {
     val limitedQuery = s"$query LIMIT 1"
     val config = Neo4jConfig(sqlContext.sparkContext.getConf)
     val driver = config.driver()
-    val session = driver.session()
+    val session = driver.session(config.sessionConfig())
     try {
       val runTransaction = new TransactionWork[(Int, StructType)]() {
         override def execute(tx: Transaction): (Int, StructType) = {
@@ -184,7 +184,7 @@ object Neo4jDataFrame {
           if (!result.hasNext) throw new RuntimeException("Can't determine schema from empty result")
           val peek: Record = result.next()
           val fields = peek.keys().asScala.map(k => (k, peek.get(k).`type`())).map(keyType => CypherTypes.field(keyType))
-          (peek.size , StructType(fields))
+          (peek.size, StructType(fields))
         }
       }
       val (peekSize, schema) = session.readTransaction(runTransaction)
@@ -206,13 +206,13 @@ object Neo4jDataFrame {
 
     override def compute(split: Partition, context: TaskContext): Iterator[Row] = {
       val driver = config.driver()
-      val session = driver.session()
+      val session = driver.session(config.sessionConfig())
       try {
         val runTransaction = new TransactionWork[Iterator[Row]]() {
           override def execute(tx: Transaction): Iterator[Row] = {
             val result = tx.run(query, params)
             if (!result.hasNext) throw new RuntimeException("Can't determine schema from empty result")
-            result.asScala.map(record => {
+            result.list().asScala.map(record => {
               val res = keyCount match {
                 case 0 => Row.empty
                 case 1 => Row(convert(record.get(0).asObject()))
@@ -226,12 +226,8 @@ object Neo4jDataFrame {
                   }
                   Row.fromSeq(builder.result())
               }
-              if (!result.hasNext) {
-                session.close()
-                driver.close()
-              }
               res
-            })
+            }).iterator
           }
         }
         session.readTransaction(runTransaction)
