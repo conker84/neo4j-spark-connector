@@ -34,15 +34,16 @@ object Neo4jDataFrame {
         """
     val partitions = Math.max(1, (dataFrame.count() / 10000).asInstanceOf[Int])
     val config = Neo4jConfig(sc.getConf)
-    dataFrame.repartition(partitions).foreachPartition(rows => {
+    def convertRows(rows: Iterator[Row]):Unit = {
       val params: AnyRef = rows.map(r =>
         Map(
           "source" -> source._2.map(c => (renamedColumns.getOrElse(c, c), toJava(r.getAs(c)))).toMap.asJava,
           "target" -> target._2.map(c => (renamedColumns.getOrElse(c, c), toJava(r.getAs(c)))).toMap.asJava,
           "relationship" -> relationship._2.map(c => (c, toJava(r.getAs(c)))).toMap.asJava)
           .asJava).asJava
-      execute(config, mergeStatement, Map("rows" -> params).asJava, write = true)
-    })
+      Neo4jDataFrame.execute(config, mergeStatement, Map("rows" -> params).asJava, write = true)
+    }
+    dataFrame.repartition(partitions).foreachPartition(convertRows _)
   }
 
 
@@ -57,13 +58,14 @@ object Neo4jDataFrame {
         """
     val partitions = Math.max(1, (dataFrame.count() / 10000).asInstanceOf[Int])
     val config = Neo4jConfig(sc.getConf)
-    dataFrame.repartition(partitions).foreachPartition(rows => {
+    def convertRows(rows: Iterator[Row]):Unit = {
       val params: AnyRef = rows.map(r =>
         Map(
           "node_properties" -> nodes._2.map(c => (renamedColumns.getOrElse(c, c), toJava(r.getAs(c)))).toMap.asJava)
           .asJava).asJava
       Neo4jDataFrame.execute(config, createStatement, Map("rows" -> params).asJava, write = true)
-    })
+    }
+    dataFrame.repartition(partitions).foreachPartition(convertRows _)
   }
 
   def execute(config: Neo4jConfig, query: String, parameters: java.util.Map[String, AnyRef], write: Boolean = false): ResultSummary = {
