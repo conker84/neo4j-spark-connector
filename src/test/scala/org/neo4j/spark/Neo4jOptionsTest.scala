@@ -114,7 +114,6 @@ class Neo4jOptionsTest {
 
     assertEquals("", neo4jOptions.session.database)
     assertEquals(AccessMode.WRITE, neo4jOptions.session.accessMode)
-
     assertEquals("basic", neo4jOptions.connection.auth)
     assertEquals("", neo4jOptions.connection.username)
     assertEquals("", neo4jOptions.connection.password)

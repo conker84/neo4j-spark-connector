@@ -10,7 +10,6 @@ import org.neo4j.driver.summary.ResultSummary
 import org.neo4j.driver._
 import org.neo4j.spark.service.SchemaServiceTSE
 
-
 object SparkConnectorScalaSuiteIT {
   val server: Neo4jContainerExtension = new Neo4jContainerExtension("neo4j:4.0.1-enterprise")
     .withNeo4jConfig("dbms.security.auth_enabled", "false")
