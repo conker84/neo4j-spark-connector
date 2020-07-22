@@ -1,13 +1,13 @@
 package org.neo4j.spark
 
-import org.apache.spark.sql.SparkSession
 import org.apache.spark.SparkConf
+import org.apache.spark.sql.SparkSession
 import org.junit.runner.RunWith
 import org.junit.runners.Suite
 import org.junit.{AfterClass, Assume, BeforeClass}
 import org.neo4j.Neo4jContainerExtension
-import org.neo4j.driver.summary.ResultSummary
 import org.neo4j.driver._
+import org.neo4j.driver.summary.ResultSummary
 import org.neo4j.spark.service.SchemaServiceTSE
 
 object SparkConnectorScalaSuiteIT {
@@ -77,6 +77,7 @@ object SparkConnectorScalaSuiteIT {
 @RunWith(classOf[Suite])
 @Suite.SuiteClasses(Array(
   classOf[SchemaServiceTSE],
-  classOf[DataSourceReaderTSE]
+  classOf[DataSourceReaderTSE],
+  classOf[DataSourceWriterTSE]
 ))
 class SparkConnectorScalaSuiteIT {}

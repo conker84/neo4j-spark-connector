@@ -3,9 +3,8 @@ package org.neo4j.spark
 import java.io.File
 import java.util.concurrent.TimeUnit
 
-import org.apache.spark.unsafe.types.UTF8String
-import org.neo4j.driver.{AccessMode, AuthToken, AuthTokens, Config, SessionConfig}
 import org.neo4j.driver.Config.TrustStrategy
+import org.neo4j.driver._
 
 class Neo4jOptions(private val parameters: java.util.Map[String, String]) extends Serializable {
 
@@ -21,7 +20,7 @@ class Neo4jOptions(private val parameters: java.util.Map[String, String]) extend
   }
 
   private def getParameter(parameter: String, defaultValue: String = ""): String = {
-    if (!parameters.containsKey(parameter) || parameters.get((parameter)).isEmpty) {
+    if (!parameters.containsKey(parameter) || parameters.get(parameter).isEmpty) {
       return defaultValue
     }
 
@@ -69,9 +68,49 @@ class Neo4jOptions(private val parameters: java.util.Map[String, String]) extend
     getParameter(DATABASE, DEFAULT_EMPTY),
     AccessMode.valueOf(getParameter(ACCESS_MODE, DEFAULT_ACCESS_MODE.toString).toUpperCase())
   )
+
+
+  val nodeMetadata = initNeo4jNodeMetadata()
+
+  private def initNeo4jNodeMetadata(): Neo4jNodeMetadata = {
+    val nodeKeys = getParameter(NODE_KEYS, "")
+      .split(",")
+      .filter(s => !s.isBlank)
+      .map(keyMapping => keyMapping.trim.split(":").map(key => key.trim))
+      .filter(mapping => !mapping.isEmpty)
+      .map(mapping => {
+        if (mapping.size == 2) {
+          (mapping(0).trim, mapping(1).trim)
+        } else {
+          (mapping(0).trim, mapping(0).trim)
+        }
+      })
+      .toMap[String, String]
+    val labels = getParameter(NODE_LABELS, "")
+      .split(",")
+      .map(label => label.trim)
+      .filter(label => !label.isEmpty)
+    val batchSize = getParameter(BATCH_SIZE, DEFAULT_BATCH_SIZE.toString).toInt
+    val nodeMappings = getParameter(NODE_MAPPINGS, "")
+      .split(",")
+      .filter(s => !s.isBlank)
+      .map(keyMapping => keyMapping.trim.split(":").map(key => key.trim))
+      .filter(mapping => !mapping.isEmpty)
+      .map(mapping => {
+        if (mapping.size == 2) {
+          (mapping(0).trim, mapping(1).trim)
+        } else {
+          (mapping(0).trim, mapping(0).trim)
+        }
+      })
+      .toMap[String, String]
+    Neo4jNodeMetadata(nodeKeys, labels, batchSize, nodeMappings)
+  }
 }
 
 case class Neo4jQueryOptions(queryType: QueryType.Value, value: String, schemaFlattenLimit: Int) extends Serializable
+
+case class Neo4jNodeMetadata(nodeKeys: Map[String, String], labels: Seq[String], batchSize: Int, nodeMappings: Map[String, String])
 
 case class Neo4jSessionOptions(database: String, accessMode: AccessMode = AccessMode.READ) {
   def toNeo4jSession: SessionConfig = {
@@ -163,6 +202,12 @@ object Neo4jOptions {
   val CONNECTION_ACQUISITION_TIMEOUT_MSECS = "connection.acquisition.timeout.msecs"
   val CONNECTION_TIMEOUT_MSECS = "connection.timeout.msecs"
 
+  // Metadata
+  val NODE_KEYS = "node.keys"
+  val NODE_MAPPINGS = "node.mappings"
+  val NODE_LABELS = "labels"
+  val BATCH_SIZE = "batch.size"
+
   // session options
   val DATABASE = "database"
   val ACCESS_MODE = "access.mode"
@@ -178,6 +223,10 @@ object Neo4jOptions {
   val DEFAULT_ENCRYPTION_ENABLED = false
   val DEFAULT_ENCRYPTION_TRUST_STRATEGY = TrustStrategy.Strategy.TRUST_SYSTEM_CA_SIGNED_CERTIFICATES
   val DEFAULT_SCHEMA_FLATTEN_LIMIT = 10
+  val DEFAULT_ENCRYPTION_CA_CERTIFICATE_PATH = ""
+  val DEFAULT_MAX_CONNECTION_LIFETIME_MSECS = 1000
+  val DEFAULT_MAX_CONNECTION_ACQUISITION_TIMEOUT_MSECS = 1000
+  val DEFAULT_BATCH_SIZE = 500
 }
 
 object QueryType extends Enumeration {
